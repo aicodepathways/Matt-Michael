@@ -60,6 +60,21 @@ GLOBAL_TICKERS = GLOBAL_STOCKS
 COMMODITY_TICKERS = list(COMMODITIES.values())
 ALL_TICKERS = COMMODITY_TICKERS + ASX_TICKERS + GLOBAL_TICKERS
 
+# Reverse lookup: ticker symbol → human-readable display name
+# Used throughout the UI so clients see "Gold" instead of "GC=F"
+TICKER_DISPLAY_NAMES = {v: k for k, v in COMMODITIES.items()}
+TICKER_DISPLAY_NAMES.update({
+    "CCJ": "Cameco (Uranium)",
+})
+# ASX stocks: strip the .AX suffix for display
+for _t in ASX_STOCKS:
+    TICKER_DISPLAY_NAMES[f"{_t}.AX"] = _t
+
+
+def display_name(ticker: str) -> str:
+    """Return a human-readable name for a ticker. Falls back to the raw ticker."""
+    return TICKER_DISPLAY_NAMES.get(ticker, ticker)
+
 # ---------------------------------------------------------------------------
 # Data Pipeline Settings
 # ---------------------------------------------------------------------------

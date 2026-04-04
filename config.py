@@ -76,24 +76,41 @@ def display_name(ticker: str) -> str:
     return TICKER_DISPLAY_NAMES.get(ticker, ticker)
 
 
-def get_effective_tickers() -> list:
+def _load_overrides_dict() -> dict:
     """
-    Return the full ticker list including any user-added tickers and
-    excluding any user-removed tickers from the Ticker Management page.
-
-    Reads ticker_overrides.json if it exists, merges with base lists.
+    Load ticker overrides. Uses ticker_storage (GitHub-backed) when running
+    inside Streamlit, falls back to local JSON file otherwise (CLI, tests).
     """
     import json
     import os
 
-    overrides_path = os.path.join(os.path.dirname(__file__), "ticker_overrides.json")
-    if not os.path.exists(overrides_path):
-        return ALL_TICKERS
-
+    # Try the persistent GitHub-backed storage first (works in Streamlit context)
     try:
-        with open(overrides_path) as f:
-            overrides = json.load(f)
-    except (json.JSONDecodeError, IOError):
+        from ticker_storage import load_overrides
+        return load_overrides()
+    except Exception:
+        pass
+
+    # Fallback: local file
+    overrides_path = os.path.join(os.path.dirname(__file__), "ticker_overrides.json")
+    if os.path.exists(overrides_path):
+        try:
+            with open(overrides_path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return {"added_asx": [], "added_global": [], "added_commodities": {}, "removed": []}
+
+
+def get_effective_tickers() -> list:
+    """
+    Return the full ticker list including any user-added tickers and
+    excluding any user-removed tickers from the Ticker Management page.
+    """
+    overrides = _load_overrides_dict()
+
+    if not any(overrides.get(k) for k in ("added_asx", "added_global", "added_commodities", "removed")):
         return ALL_TICKERS
 
     tickers = list(ALL_TICKERS)
@@ -102,7 +119,6 @@ def get_effective_tickers() -> list:
     for t in overrides.get("added_asx", []):
         if t not in tickers:
             tickers.append(t)
-            # Also register display name
             TICKER_DISPLAY_NAMES[t] = t.replace(".AX", "")
     for t in overrides.get("added_global", []):
         if t not in tickers:

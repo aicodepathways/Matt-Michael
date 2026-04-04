@@ -28,20 +28,11 @@ st.set_page_config(
     layout="wide",
 )
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from ticker_storage import load_overrides, save_overrides
+
 OVERRIDES_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ticker_overrides.json")
-
-
-def load_overrides() -> dict:
-    if os.path.exists(OVERRIDES_FILE):
-        with open(OVERRIDES_FILE) as f:
-            return json.load(f)
-    return {"added_asx": [], "added_global": [], "added_commodities": {}, "removed": []}
-
-
-def save_overrides(overrides: dict):
-    with open(OVERRIDES_FILE, "w") as f:
-        json.dump(overrides, f, indent=2)
-
 
 overrides = load_overrides()
 
@@ -233,12 +224,14 @@ if st.button("Remove Ticker", type="secondary"):
 
 st.markdown("---")
 if st.button("Reset All Changes", help="Remove all custom additions and removals, reverting to the default ticker universe."):
-    if os.path.exists(OVERRIDES_FILE):
-        os.remove(OVERRIDES_FILE)
+    from ticker_storage import DEFAULT_OVERRIDES
+    save_overrides(DEFAULT_OVERRIDES.copy())
+    if "ticker_overrides" in st.session_state:
+        del st.session_state["ticker_overrides"]
     st.success("All customizations cleared. Refresh data on the main page.")
     st.rerun()
 
 st.caption(
-    f"Custom overrides are saved to `ticker_overrides.json`. "
-    f"After adding or removing tickers, click **Refresh Data** on the main dashboard to apply changes."
+    "Custom tickers are saved persistently. They will survive app restarts. "
+    "After adding or removing tickers, click **Refresh Data** on the main dashboard to apply changes."
 )

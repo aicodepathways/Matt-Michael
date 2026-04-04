@@ -48,6 +48,11 @@ from risk_manager import (
     portfolio_risk_summary,
     run_risk_pipeline,
 )
+from signal_history import (
+    compute_changes,
+    get_history,
+    save_today_signals_full,
+)
 
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
@@ -259,6 +264,42 @@ col5.metric("Risk Mode", risk_mode_str.upper())
 if portfolio_risk.warnings:
     for w in portfolio_risk.warnings:
         st.warning(w)
+
+# ---------------------------------------------------------------------------
+# Signal History — save today's snapshot and compute changes
+# ---------------------------------------------------------------------------
+
+data_date = str(prices.index[-1].date())
+save_today_signals_full(
+    positions=risk_result["positions"],
+    signals=pairs_result["signals"],
+    data_date=data_date,
+)
+changes = compute_changes(risk_result["positions"], pairs_result["signals"], data_date)
+
+# ---------------------------------------------------------------------------
+# What Changed Since Yesterday
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+
+if changes["previous_date"]:
+    change_col1, change_col2, change_col3 = st.columns(3)
+    with change_col1:
+        st.metric("New Entries Today", len(changes["new_entries"]))
+    with change_col2:
+        st.metric("Positions Closed", len(changes["closed"]))
+    with change_col3:
+        st.metric("Continuing Positions", len(changes["continued"]))
+
+    if changes["new_entries"]:
+        st.success(f"**New since {changes['previous_date']}:** " + ", ".join(f"{dn(a)}/{dn(b)}" for a, b in changes["new_entries"]))
+    if changes["closed"]:
+        st.error(f"**Closed since {changes['previous_date']}:** " + ", ".join(f"{dn(a)}/{dn(b)}" for a, b in changes["closed"]))
+    if not changes["new_entries"] and not changes["closed"]:
+        st.info(f"No changes since {changes['previous_date']}. All {len(changes['continued'])} positions continue.")
+else:
+    st.info("First run — no previous day to compare against. Signal history will build up from today.")
 
 # ---------------------------------------------------------------------------
 # Actionable Signals Table
@@ -599,6 +640,45 @@ if gold_valid_pairs:
 else:
     with st.expander("Gold Pair Z-Score History"):
         st.info("No cointegrated gold pairs to display.")
+
+
+# ---------------------------------------------------------------------------
+# Signal History (rolling log)
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+st.subheader("Signal History")
+st.caption("Rolling log of past daily signals. Builds up over time as you refresh data each day.")
+
+history = get_history()
+if history:
+    history_rows = []
+    for hist_date in sorted(history.keys(), reverse=True)[:30]:
+        day_signals = history[hist_date]
+        entries = [s for s in day_signals if s.get("type") == "ENTRY"]
+        exits = [s for s in day_signals if s.get("type") in ("EXIT", "STOP")]
+        for e in entries:
+            history_rows.append({
+                "Date": hist_date,
+                "Type": "ENTRY",
+                "Long": e.get("long_display", e.get("long", "")),
+                "Short": e.get("short_display", e.get("short", "")),
+                "Z-Score": e.get("zscore", ""),
+            })
+        for x in exits:
+            history_rows.append({
+                "Date": hist_date,
+                "Type": x.get("signal", "EXIT"),
+                "Long": x.get("a_display", x.get("ticker_a", "")),
+                "Short": x.get("b_display", x.get("ticker_b", "")),
+                "Z-Score": "",
+            })
+    if history_rows:
+        st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("History exists but no entry/exit signals were recorded.")
+else:
+    st.info("No signal history yet. History builds up as you refresh data each day.")
 
 
 # ---------------------------------------------------------------------------

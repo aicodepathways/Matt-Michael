@@ -75,6 +75,49 @@ def display_name(ticker: str) -> str:
     """Return a human-readable name for a ticker. Falls back to the raw ticker."""
     return TICKER_DISPLAY_NAMES.get(ticker, ticker)
 
+
+def get_effective_tickers() -> list:
+    """
+    Return the full ticker list including any user-added tickers and
+    excluding any user-removed tickers from the Ticker Management page.
+
+    Reads ticker_overrides.json if it exists, merges with base lists.
+    """
+    import json
+    import os
+
+    overrides_path = os.path.join(os.path.dirname(__file__), "ticker_overrides.json")
+    if not os.path.exists(overrides_path):
+        return ALL_TICKERS
+
+    try:
+        with open(overrides_path) as f:
+            overrides = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return ALL_TICKERS
+
+    tickers = list(ALL_TICKERS)
+
+    # Add custom tickers
+    for t in overrides.get("added_asx", []):
+        if t not in tickers:
+            tickers.append(t)
+            # Also register display name
+            TICKER_DISPLAY_NAMES[t] = t.replace(".AX", "")
+    for t in overrides.get("added_global", []):
+        if t not in tickers:
+            tickers.append(t)
+    for name, t in overrides.get("added_commodities", {}).items():
+        if t not in tickers:
+            tickers.append(t)
+            TICKER_DISPLAY_NAMES[t] = name
+
+    # Remove tickers
+    removed = set(overrides.get("removed", []))
+    tickers = [t for t in tickers if t not in removed]
+
+    return tickers
+
 # ---------------------------------------------------------------------------
 # Data Pipeline Settings
 # ---------------------------------------------------------------------------

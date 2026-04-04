@@ -24,6 +24,7 @@ from config import (
     DEFAULT_START_DATE,
     FORWARD_FILL_LIMIT,
     GLOBAL_TICKERS,
+    get_effective_tickers,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def download_prices(
     with one column per ticker.
     """
     if tickers is None:
-        tickers = ALL_TICKERS
+        tickers = get_effective_tickers()
     if end is None:
         end = datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -234,32 +235,67 @@ def classify_ticker(ticker: str) -> str:
     return "unknown"
 
 
-def get_ticker_pairs() -> List[Tuple[str, str]]:
+def get_ticker_pairs(available_tickers: Optional[List[str]] = None) -> List[Tuple[str, str]]:
     """
     Generate candidate pair combinations for cointegration testing.
 
+    If available_tickers is provided (e.g. from downloaded prices columns),
+    uses those to classify tickers dynamically. This ensures custom tickers
+    added via the Ticker Management page are included in the scan.
+
     Rules:
-      - ASX stock vs ASX stock (same sector implicit via later filtering)
-      - ASX stock vs related commodity proxy
-      - Global stock vs commodity
+      - Stock vs Stock
+      - Stock vs Commodity
+      - Global vs Commodity
     We do NOT pair two commodities (no edge there for this fund).
     """
     from itertools import combinations
+    import json
+    import os
+
+    # Build effective ticker lists including overrides
+    asx = list(ASX_TICKERS)
+    comms = list(COMMODITY_TICKERS)
+    globs = list(GLOBAL_TICKERS)
+
+    overrides_path = os.path.join(os.path.dirname(__file__), "ticker_overrides.json")
+    if os.path.exists(overrides_path):
+        try:
+            with open(overrides_path) as f:
+                overrides = json.load(f)
+            for t in overrides.get("added_asx", []):
+                if t not in asx:
+                    asx.append(t)
+            for t in overrides.get("added_global", []):
+                if t not in globs:
+                    globs.append(t)
+            for name, t in overrides.get("added_commodities", {}).items():
+                if t not in comms:
+                    comms.append(t)
+            removed = set(overrides.get("removed", []))
+            asx = [t for t in asx if t not in removed]
+            comms = [t for t in comms if t not in removed]
+            globs = [t for t in globs if t not in removed]
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # If we know what was actually downloaded, filter to those
+    if available_tickers is not None:
+        avail = set(available_tickers)
+        asx = [t for t in asx if t in avail]
+        comms = [t for t in comms if t in avail]
+        globs = [t for t in globs if t in avail]
 
     pairs = []
 
-    # ASX vs ASX
-    pairs.extend(combinations(ASX_TICKERS, 2))
+    # Stock vs Stock (ASX + Global combined)
+    all_stocks = asx + globs
+    pairs.extend(combinations(all_stocks, 2))
 
-    # ASX vs Commodity
-    for asx in ASX_TICKERS:
-        for comm in COMMODITY_TICKERS:
-            pairs.append((asx, comm))
-
-    # Global vs Commodity
-    for gl in GLOBAL_TICKERS:
-        for comm in COMMODITY_TICKERS:
-            pairs.append((gl, comm))
+    # Stock vs Commodity
+    for stock in all_stocks:
+        for comm in comms:
+            pairs.append((stock, comm))
 
     return pairs
 

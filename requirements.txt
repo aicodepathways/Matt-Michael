@@ -9,3 +9,4 @@ statsmodels>=0.14,<1
 requests>=2.31
 matplotlib>=3.7
 scipy>=1.12,<2
+websockets>=12.0

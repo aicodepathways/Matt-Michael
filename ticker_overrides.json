@@ -118,7 +118,8 @@
     "WDS.AX",
     "AVL.AX",
     "TLG.AX",
-    "TLM.AX"
+    "TLM.AX",
+    "ARU.AX"
   ],
   "added_global": [],
   "added_commodities": {},

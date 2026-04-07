@@ -71,7 +71,8 @@
     "SLS.AX",
     "WIN.AX",
     "WTM.AX",
-    "CIA.AX"
+    "CIA.AX",
+    "CZR.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -55,7 +55,8 @@
     "NXM.AX",
     "PTN.AX",
     "RTR.AX",
-    "SMI.AX"
+    "SMI.AX",
+    "TCG.AX"
   ],
   "added_global": [],
   "added_commodities": {},

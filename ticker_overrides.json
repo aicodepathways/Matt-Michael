@@ -85,7 +85,8 @@
     "BHP.AX",
     "RIO.AX",
     "CBA.AX",
-    "WBC.AX"
+    "WBC.AX",
+    "WES.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -17,7 +17,8 @@
     "PMT.AX",
     "S32.AX",
     "AAI.AX",
-    "MMI.AX"
+    "MMI.AX",
+    "CAY.AX"
   ],
   "added_global": [],
   "added_commodities": {},

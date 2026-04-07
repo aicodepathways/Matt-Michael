@@ -81,7 +81,8 @@
     "VUL.AX",
     "WC8.AX",
     "ILU.AX",
-    "SVM.AX"
+    "SVM.AX",
+    "BHP.AX"
   ],
   "added_global": [],
   "added_commodities": {},

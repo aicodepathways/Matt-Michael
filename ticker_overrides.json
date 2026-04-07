@@ -112,7 +112,8 @@
     "AGL.AX",
     "BPT.AX",
     "COI.AX",
-    "CVN.AX"
+    "CVN.AX",
+    "STO.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -72,7 +72,8 @@
     "WIN.AX",
     "WTM.AX",
     "CIA.AX",
-    "CZR.AX"
+    "CZR.AX",
+    "FEX.AX"
   ],
   "added_global": [],
   "added_commodities": {},

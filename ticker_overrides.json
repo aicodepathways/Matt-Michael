@@ -83,7 +83,8 @@
     "ILU.AX",
     "SVM.AX",
     "BHP.AX",
-    "RIO.AX"
+    "RIO.AX",
+    "CBA.AX"
   ],
   "added_global": [],
   "added_commodities": {},

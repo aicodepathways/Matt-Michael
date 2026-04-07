@@ -77,7 +77,8 @@
     "RHI.AX",
     "CXO.AX",
     "GL1.AX",
-    "GLN.AX"
+    "GLN.AX",
+    "VUL.AX"
   ],
   "added_global": [],
   "added_commodities": {},

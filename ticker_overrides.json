@@ -129,7 +129,8 @@
     "MTM.AX",
     "VHM.AX",
     "IVR.AX",
-    "GCM.AX"
+    "GCM.AX",
+    "BMC.AX"
   ],
   "added_global": [],
   "added_commodities": {},

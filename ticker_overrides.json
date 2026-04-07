@@ -114,7 +114,8 @@
     "COI.AX",
     "CVN.AX",
     "STO.AX",
-    "STX.AX"
+    "STX.AX",
+    "WDS.AX"
   ],
   "added_global": [],
   "added_commodities": {},

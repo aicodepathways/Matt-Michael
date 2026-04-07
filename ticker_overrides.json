@@ -119,7 +119,8 @@
     "AVL.AX",
     "TLG.AX",
     "TLM.AX",
-    "ARU.AX"
+    "ARU.AX",
+    "BCM.AX"
   ],
   "added_global": [],
   "added_commodities": {},

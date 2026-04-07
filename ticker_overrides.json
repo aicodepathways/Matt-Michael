@@ -70,7 +70,8 @@
     "KAL.AX",
     "SLS.AX",
     "WIN.AX",
-    "WTM.AX"
+    "WTM.AX",
+    "CIA.AX"
   ],
   "added_global": [],
   "added_commodities": {},

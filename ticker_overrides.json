@@ -15,7 +15,8 @@
     "OR3.AX",
     "DLI.AX",
     "PMT.AX",
-    "S32.AX"
+    "S32.AX",
+    "AAI.AX"
   ],
   "added_global": [],
   "added_commodities": {},

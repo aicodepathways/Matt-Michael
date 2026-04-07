@@ -128,7 +128,8 @@
     "LIN.AX",
     "MTM.AX",
     "VHM.AX",
-    "IVR.AX"
+    "IVR.AX",
+    "GCM.AX"
   ],
   "added_global": [],
   "added_commodities": {},

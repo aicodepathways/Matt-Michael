@@ -3,7 +3,8 @@
     "FMG.AX",
     "BNZ.AX",
     "TOR.AX",
-    "CRS.AX"
+    "CRS.AX",
+    "FRB.AX"
   ],
   "added_global": [],
   "added_commodities": {},

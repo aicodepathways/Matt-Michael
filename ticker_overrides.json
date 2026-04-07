@@ -133,7 +133,8 @@
     "BMC.AX",
     "AGE.AX",
     "DEV.AX",
-    "EL8.AX"
+    "EL8.AX",
+    "I88.AX"
   ],
   "added_global": [],
   "added_commodities": {},

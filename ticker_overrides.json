@@ -23,7 +23,8 @@
     "BVR.AX",
     "MRZ.AX",
     "KM1.AX",
-    "ANX.AX"
+    "ANX.AX",
+    "CNB.AX"
   ],
   "added_global": [],
   "added_commodities": {},

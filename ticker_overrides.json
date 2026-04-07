@@ -22,7 +22,8 @@
     "LM1.AX",
     "BVR.AX",
     "MRZ.AX",
-    "KM1.AX"
+    "KM1.AX",
+    "ANX.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -130,7 +130,8 @@
     "VHM.AX",
     "IVR.AX",
     "GCM.AX",
-    "BMC.AX"
+    "BMC.AX",
+    "AGE.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -18,7 +18,8 @@
     "S32.AX",
     "AAI.AX",
     "MMI.AX",
-    "CAY.AX"
+    "CAY.AX",
+    "LM1.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -121,7 +121,8 @@
     "TLM.AX",
     "ARU.AX",
     "BCM.AX",
-    "DRE.AX"
+    "DRE.AX",
+    "DTR.AX"
   ],
   "added_global": [],
   "added_commodities": {},

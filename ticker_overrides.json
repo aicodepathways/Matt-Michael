@@ -122,7 +122,8 @@
     "ARU.AX",
     "BCM.AX",
     "DRE.AX",
-    "DTR.AX"
+    "DTR.AX",
+    "ENR.AX"
   ],
   "added_global": [],
   "added_commodities": {},

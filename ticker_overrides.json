@@ -135,7 +135,8 @@
     "DEV.AX",
     "EL8.AX",
     "I88.AX",
-    "LAM.AX"
+    "LAM.AX",
+    "LMS.AX"
   ],
   "added_global": [],
   "added_commodities": {},

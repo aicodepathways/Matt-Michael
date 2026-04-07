@@ -68,7 +68,8 @@
     "VMM.AX",
     "OZM.AX",
     "KAL.AX",
-    "SLS.AX"
+    "SLS.AX",
+    "WIN.AX"
   ],
   "added_global": [],
   "added_commodities": {},

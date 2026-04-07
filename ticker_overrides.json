@@ -110,7 +110,8 @@
     "LM8.AX",
     "NIC.AX",
     "AGL.AX",
-    "BPT.AX"
+    "BPT.AX",
+    "COI.AX"
   ],
   "added_global": [],
   "added_commodities": {},

@@ -107,7 +107,8 @@
     "SYR.AX",
     "BSX.AX",
     "NC1.AX",
-    "LM8.AX"
+    "LM8.AX",
+    "NIC.AX"
   ],
   "added_global": [],
   "added_commodities": {},

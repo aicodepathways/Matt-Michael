@@ -127,7 +127,8 @@
     "HAS.AX",
     "LIN.AX",
     "MTM.AX",
-    "VHM.AX"
+    "VHM.AX",
+    "IVR.AX"
   ],
   "added_global": [],
   "added_commodities": {},

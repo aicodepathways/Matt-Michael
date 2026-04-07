@@ -24,7 +24,8 @@
     "MRZ.AX",
     "KM1.AX",
     "ANX.AX",
-    "CNB.AX"
+    "CNB.AX",
+    "CVV.AX"
   ],
   "added_global": [],
   "added_commodities": {},

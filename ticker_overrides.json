@@ -20,7 +20,8 @@
     "MMI.AX",
     "CAY.AX",
     "LM1.AX",
-    "BVR.AX"
+    "BVR.AX",
+    "MRZ.AX"
   ],
   "added_global": [],
   "added_commodities": {},

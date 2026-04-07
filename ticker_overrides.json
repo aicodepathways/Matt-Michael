@@ -111,7 +111,8 @@
     "NIC.AX",
     "AGL.AX",
     "BPT.AX",
-    "COI.AX"
+    "COI.AX",
+    "CVN.AX"
   ],
   "added_global": [],
   "added_commodities": {},

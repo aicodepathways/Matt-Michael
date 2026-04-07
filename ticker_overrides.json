@@ -132,7 +132,8 @@
     "GCM.AX",
     "BMC.AX",
     "AGE.AX",
-    "DEV.AX"
+    "DEV.AX",
+    "EL8.AX"
   ],
   "added_global": [],
   "added_commodities": {},

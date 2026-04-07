@@ -125,7 +125,8 @@
     "DTR.AX",
     "ENR.AX",
     "HAS.AX",
-    "LIN.AX"
+    "LIN.AX",
+    "MTM.AX"
   ],
   "added_global": [],
   "added_commodities": {},

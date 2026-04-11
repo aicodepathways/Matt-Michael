@@ -312,41 +312,84 @@ positions = risk_result["positions"]
 entry_positions = [p for p in positions if p.signal in ("LONG_A_SHORT_B", "SHORT_A_LONG_B")]
 exit_positions = [p for p in positions if p.signal in ("EXIT", "STOP")]
 
-if entry_positions:
+def _fmt_price(price: float) -> str:
+    """Format price with enough decimal places for penny stocks."""
+    if price < 1:
+        return f"${price:.4f}"
+    return f"${price:,.2f}"
+
+
+# Separate clean entries from those where the last close already crossed the stop
+clean_entries = [p for p in entry_positions if not (p.stop_triggered_a or p.stop_triggered_b)]
+triggered_entries = [p for p in entry_positions if p.stop_triggered_a or p.stop_triggered_b]
+
+if clean_entries:
     rows = []
-    for p in entry_positions:
+    for p in clean_entries:
         if p.signal == "LONG_A_SHORT_B":
             long_tk, short_tk = p.ticker_a, p.ticker_b
             long_w, short_w = p.weight_a, p.weight_b
             long_n, short_n = p.notional_a, p.notional_b
             long_stop, short_stop = p.stop_loss_a, p.stop_loss_b
+            long_price, short_price = p.price_a, p.price_b
         else:
             long_tk, short_tk = p.ticker_b, p.ticker_a
             long_w, short_w = p.weight_b, p.weight_a
             long_n, short_n = p.notional_b, p.notional_a
             long_stop, short_stop = p.stop_loss_b, p.stop_loss_a
+            long_price, short_price = p.price_b, p.price_a
+
+        # Distance from current price to stop (shows how close we are to getting stopped out)
+        long_to_stop = abs(long_price - long_stop) / long_price
+        short_to_stop = abs(short_price - short_stop) / short_price
 
         rows.append({
-            # FIX #3: Display names for commodities
             "Long": dn(long_tk),
+            "Long Price": _fmt_price(long_price),
+            "Long Stop": _fmt_price(long_stop),
+            "L Stop %": f"{long_to_stop:.1%}",
             "Short": dn(short_tk),
+            "Short Price": _fmt_price(short_price),
+            "Short Stop": _fmt_price(short_stop),
+            "S Stop %": f"{short_to_stop:.1%}",
             "Z-Score": round(
                 next((s.zscore for s in pairs_result["signals"]
                       if s.ticker_a == p.ticker_a and s.ticker_b == p.ticker_b), 0.0), 3,
             ),
-            "Long Weight": f"{long_w:+.2%}",
-            "Short Weight": f"{short_w:+.2%}",
             "Long Notional": f"${long_n:,.0f}",
             "Short Notional": f"${short_n:,.0f}",
-            "Long Stop": f"${long_stop:,.2f}",
-            "Short Stop": f"${short_stop:,.2f}",
             "Max Loss": f"{p.max_loss_pct:.2%}",
-            "Eff. Leverage": f"{p.effective_leverage:.1f}x",
+            "Eff. Lev.": f"{p.effective_leverage:.1f}x",
         })
 
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-else:
+    st.caption(
+        "L Stop % / S Stop % show how far the current price is from the stop. "
+        "A value near 0% means the price is right at the stop — execute with caution."
+    )
+elif not triggered_entries:
     st.info("No actionable entry signals at this time. The market may be in a trending regime or no pairs meet the Z-score threshold.")
+
+if triggered_entries:
+    st.warning(
+        f"{len(triggered_entries)} entry signal(s) have prices that already crossed the stop (data is from last close; "
+        f"these pairs gapped past the stop level overnight). Do NOT enter these trades."
+    )
+    with st.expander(f"Skipped — Entry Already Past Stop ({len(triggered_entries)})"):
+        trig_rows = []
+        for p in triggered_entries:
+            trig_rows.append({
+                "Ticker A": dn(p.ticker_a),
+                "Price A": _fmt_price(p.price_a),
+                "Stop A": _fmt_price(p.stop_loss_a),
+                "A Triggered": "Yes" if p.stop_triggered_a else "No",
+                "Ticker B": dn(p.ticker_b),
+                "Price B": _fmt_price(p.price_b),
+                "Stop B": _fmt_price(p.stop_loss_b),
+                "B Triggered": "Yes" if p.stop_triggered_b else "No",
+                "Signal": p.signal,
+            })
+        st.dataframe(pd.DataFrame(trig_rows), use_container_width=True, hide_index=True)
 
 # FIX #1: Exits shown by default, not hidden in expander
 if exit_positions:

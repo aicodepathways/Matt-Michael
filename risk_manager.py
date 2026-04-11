@@ -42,6 +42,7 @@ from config import (
     MAX_LEVERAGE,
     MAX_POSITION_PCT,
     MAX_TOTAL_EXPOSURE_PCT,
+    MIN_STOP_PCT,
 )
 from hmm_engine import RegimeState
 from pairs_engine import PairSignal
@@ -104,6 +105,10 @@ class PositionSizing:
     ticker_b: str
     signal: str
 
+    # Current last-close prices (used for sizing and stop-loss calculation)
+    price_a: float
+    price_b: float
+
     # Notional weights as fraction of NAV (before leverage)
     weight_a: float                  # Positive = long, negative = short
     weight_b: float
@@ -115,6 +120,8 @@ class PositionSizing:
     # Risk metrics
     stop_loss_a: float               # Price-based stop for leg A
     stop_loss_b: float               # Price-based stop for leg B
+    stop_triggered_a: bool           # True if last price already past stop
+    stop_triggered_b: bool
     max_loss_pct: float              # Estimated max loss as % of NAV
     effective_leverage: float        # Gross notional / NAV for this pair
     vol_scalar: float                # The volatility scaling factor applied
@@ -212,14 +219,20 @@ def compute_stop_loss(
     atr: float,
     atr_multiplier: float,
     is_long: bool,
+    min_pct: float = MIN_STOP_PCT,
 ) -> float:
     """
-    Compute an ATR-based stop-loss price.
+    Compute an ATR-based stop-loss price with a percentage floor.
 
-    Long position:  stop = price - (ATR * multiplier)
-    Short position: stop = price + (ATR * multiplier)
+    Long position:  stop = price - max(ATR * multiplier, price * min_pct)
+    Short position: stop = price + max(ATR * multiplier, price * min_pct)
+
+    The min_pct floor ensures penny stocks don't get absurdly tight stops
+    where the ATR in absolute dollars is a fraction of a cent.
     """
-    distance = atr * atr_multiplier
+    atr_distance = atr * atr_multiplier
+    min_distance = current_price * min_pct
+    distance = max(atr_distance, min_distance)
     if is_long:
         return current_price - distance
     return current_price + distance
@@ -342,6 +355,23 @@ def size_pair_position(
     stop_a = compute_stop_loss(price_a, atr_a, profile.stop_atr_mult, is_long=(weight_a > 0))
     stop_b = compute_stop_loss(price_b, atr_b, profile.stop_atr_mult, is_long=(weight_b > 0))
 
+    # Check if the current price has already crossed the stop (dead-on-arrival)
+    # For a long: stop is below entry, so triggered if price <= stop
+    # For a short: stop is above entry, so triggered if price >= stop
+    if weight_a > 0:
+        stop_triggered_a = price_a <= stop_a
+    elif weight_a < 0:
+        stop_triggered_a = price_a >= stop_a
+    else:
+        stop_triggered_a = False
+
+    if weight_b > 0:
+        stop_triggered_b = price_b <= stop_b
+    elif weight_b < 0:
+        stop_triggered_b = price_b >= stop_b
+    else:
+        stop_triggered_b = False
+
     # Step 7: Estimated max loss
     loss_a = abs(price_a - stop_a) / price_a * abs(weight_a)
     loss_b = abs(price_b - stop_b) / price_b * abs(weight_b)
@@ -358,12 +388,16 @@ def size_pair_position(
         ticker_a=ticker_a,
         ticker_b=ticker_b,
         signal=signal.signal,
+        price_a=round(price_a, 4),
+        price_b=round(price_b, 4),
         weight_a=round(weight_a, 6),
         weight_b=round(weight_b, 6),
         notional_a=round(notional_a, 2),
         notional_b=round(notional_b, 2),
         stop_loss_a=round(stop_a, 4),
         stop_loss_b=round(stop_b, 4),
+        stop_triggered_a=stop_triggered_a,
+        stop_triggered_b=stop_triggered_b,
         max_loss_pct=round(max_loss_pct, 6),
         effective_leverage=round(effective_lev, 2),
         vol_scalar=round(adjusted_scalar, 4),

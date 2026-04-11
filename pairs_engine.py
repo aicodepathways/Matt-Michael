@@ -144,25 +144,52 @@ def scan_cointegration(
     pvalue_threshold: float = DEFAULT_COINT_PVALUE,
     min_half_life: float = MIN_HALF_LIFE,
     max_half_life: float = MAX_HALF_LIFE,
+    correlation_prefilter: float = 0.3,
 ) -> List[PairProfile]:
     """
     Scan all candidate pairs for cointegration.
 
+    Performance optimization: pre-filters candidates by absolute correlation
+    (default 0.3). Highly uncorrelated pairs are rarely cointegrated, so this
+    skips the expensive Engle-Granger test on pairs unlikely to pass.
+    0.3 is conservative enough to preserve weakly-correlated cointegrated pairs.
+
     Returns a list of PairProfile objects sorted by p-value (best first).
     """
     if candidate_pairs is None:
-        candidate_pairs = get_ticker_pairs()
+        candidate_pairs = get_ticker_pairs(available_tickers=list(prices.columns))
 
     available = set(prices.columns)
     candidate_pairs = [
         (a, b) for a, b in candidate_pairs
         if a in available and b in available
     ]
+    total_candidates = len(candidate_pairs)
 
-    logger.info("Scanning %d candidate pairs for cointegration...", len(candidate_pairs))
+    # Pre-filter: compute correlation matrix once, skip pairs below threshold
+    logger.info("Pre-filtering %d pairs by correlation >= %.2f...", total_candidates, correlation_prefilter)
+    log_returns = np.log(prices / prices.shift(1)).dropna(how="all")
+    corr_matrix = log_returns.corr()
+
+    filtered_pairs = []
+    for a, b in candidate_pairs:
+        try:
+            c = corr_matrix.loc[a, b]
+            if pd.notna(c) and abs(c) >= correlation_prefilter:
+                filtered_pairs.append((a, b))
+        except KeyError:
+            continue
+
+    logger.info(
+        "Correlation pre-filter: %d of %d pairs retained (%.0f%% skipped)",
+        len(filtered_pairs), total_candidates,
+        100 * (1 - len(filtered_pairs) / max(1, total_candidates)),
+    )
+
+    logger.info("Running Engle-Granger test on %d filtered pairs...", len(filtered_pairs))
     results: List[PairProfile] = []
 
-    for ticker_a, ticker_b in candidate_pairs:
+    for ticker_a, ticker_b in filtered_pairs:
         y = prices[ticker_a]
         x = prices[ticker_b]
 

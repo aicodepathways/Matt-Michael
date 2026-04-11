@@ -197,3 +197,9 @@ AGGRESSIVE_ZSCORE_STOP = 4.0            # Wider stop
 MAX_POSITION_PCT = 0.20                 # Max 20% of NAV in a single pair
 MAX_TOTAL_EXPOSURE_PCT = 1.0            # Max 100% NAV gross exposure (before leverage)
 MARGIN_BUFFER_PCT = 0.15                # Keep 15% margin buffer vs maintenance
+
+# Stop-loss floor: prevents absurdly tight stops on low-priced stocks.
+# For a penny stock where ATR might be a fraction of a cent, the ATR-based
+# stop can end up within a pip of the entry price. This floor ensures the
+# stop is always at least this % away from the current price.
+MIN_STOP_PCT = 0.04                     # 4% minimum stop distance

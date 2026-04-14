@@ -209,17 +209,24 @@ st.sidebar.caption(
 def drill_down_chart(valid_pairs, prices, p_hash, profile):
     pair_options = [f"{dn(p.ticker_a)} / {dn(p.ticker_b)}" for p in valid_pairs]
 
+    st.subheader("Z-Score: Selected Pair")
+
     if not pair_options:
-        st.sidebar.info("No cointegrated pairs found.")
-        st.subheader("Z-Score: Selected Pair")
-        st.info("No valid pair to chart.")
+        st.info("No cointegrated pairs found.")
         return
 
-    selected_pair_str = st.sidebar.selectbox("Drill-down Pair", options=pair_options, index=0, key="drill_down_selector")
+    # Selector lives INSIDE the fragment (not the sidebar) so changing it
+    # only reruns this fragment. Streamlit disallows sidebar widgets
+    # inside fragments.
+    selected_pair_str = st.selectbox(
+        "Drill-down Pair",
+        options=pair_options,
+        index=0,
+        key="drill_down_selector",
+        help="Change this to view the Z-score chart for any cointegrated pair. Only this chart reloads.",
+    )
     sel_idx = pair_options.index(selected_pair_str)
     sel_pair = valid_pairs[sel_idx]
-
-    st.subheader("Z-Score: Selected Pair")
     try:
         analytics = cached_pair_analytics(
             p_hash, prices, sel_pair.ticker_a, sel_pair.ticker_b, window=DEFAULT_LOOKBACK,

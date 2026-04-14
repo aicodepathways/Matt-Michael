@@ -187,22 +187,7 @@ risk_result = run_risk_pipeline(
 )
 portfolio_risk = risk_result["portfolio_risk"]
 
-# ---------------------------------------------------------------------------
-# Pair selector (sidebar, after data is loaded)
-# ---------------------------------------------------------------------------
-
 valid_pairs = pairs_result["valid_pairs"]
-# FIX #3: Use display names in pair selector
-pair_options = [f"{dn(p.ticker_a)} / {dn(p.ticker_b)}" for p in valid_pairs]
-
-if pair_options:
-    selected_pair_str = st.sidebar.selectbox("Drill-down Pair", options=pair_options, index=0)
-    sel_idx = pair_options.index(selected_pair_str)
-    sel_pair = valid_pairs[sel_idx]
-else:
-    st.sidebar.info("No cointegrated pairs found.")
-    selected_pair_str = None
-    sel_pair = None
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
@@ -210,6 +195,71 @@ st.sidebar.caption(
     f"Leverage cap: {profile.max_leverage_util:.1f}x | "
     f"Vol target: {profile.vol_target:.0%}"
 )
+
+
+# ---------------------------------------------------------------------------
+# Drill-down fragment: pair selector + Z-score chart
+#
+# Wrapped in @st.fragment so changing the pair ONLY reruns this section —
+# the rest of the app (data pipeline, top-row metrics, signals table)
+# stays put and doesn't flicker on each pair change.
+# ---------------------------------------------------------------------------
+
+@st.fragment
+def drill_down_chart(valid_pairs, prices, p_hash, profile):
+    pair_options = [f"{dn(p.ticker_a)} / {dn(p.ticker_b)}" for p in valid_pairs]
+
+    if not pair_options:
+        st.sidebar.info("No cointegrated pairs found.")
+        st.subheader("Z-Score: Selected Pair")
+        st.info("No valid pair to chart.")
+        return
+
+    selected_pair_str = st.sidebar.selectbox("Drill-down Pair", options=pair_options, index=0, key="drill_down_selector")
+    sel_idx = pair_options.index(selected_pair_str)
+    sel_pair = valid_pairs[sel_idx]
+
+    st.subheader("Z-Score: Selected Pair")
+    try:
+        analytics = cached_pair_analytics(
+            p_hash, prices, sel_pair.ticker_a, sel_pair.ticker_b, window=DEFAULT_LOOKBACK,
+        )
+        zscore_series = analytics["zscore"].dropna()
+        display_window = min(252, len(zscore_series))
+        zs = zscore_series.iloc[-display_window:]
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=zs.index, y=zs.values,
+            mode="lines", name="Z-Score",
+            line=dict(color="white", width=2),
+        ))
+
+        fig.add_hline(y=profile.zscore_entry, line_dash="dash", line_color="cyan", annotation_text=f"Entry +{profile.zscore_entry}")
+        fig.add_hline(y=-profile.zscore_entry, line_dash="dash", line_color="cyan", annotation_text=f"Entry -{profile.zscore_entry}")
+        fig.add_hline(y=DEFAULT_ZSCORE_EXIT, line_dash="dot", line_color="lime", annotation_text=f"Exit +{DEFAULT_ZSCORE_EXIT}")
+        fig.add_hline(y=-DEFAULT_ZSCORE_EXIT, line_dash="dot", line_color="lime", annotation_text=f"Exit -{DEFAULT_ZSCORE_EXIT}")
+        fig.add_hline(y=profile.zscore_stop, line_dash="solid", line_color="red", annotation_text=f"Stop +{profile.zscore_stop}")
+        fig.add_hline(y=-profile.zscore_stop, line_dash="solid", line_color="red", annotation_text=f"Stop -{profile.zscore_stop}")
+        fig.add_hline(y=0, line_color="grey", line_width=0.5)
+
+        fig.add_hrect(y0=profile.zscore_entry, y1=profile.zscore_stop, fillcolor="rgba(255,165,0,0.08)", line_width=0)
+        fig.add_hrect(y0=-profile.zscore_stop, y1=-profile.zscore_entry, fillcolor="rgba(255,165,0,0.08)", line_width=0)
+        fig.add_hrect(y0=profile.zscore_stop, y1=max(zs.max() * 1.1, profile.zscore_stop + 1), fillcolor="rgba(255,0,0,0.1)", line_width=0)
+        fig.add_hrect(y0=min(zs.min() * 1.1, -profile.zscore_stop - 1), y1=-profile.zscore_stop, fillcolor="rgba(255,0,0,0.1)", line_width=0)
+
+        fig.update_layout(
+            title=f"{dn(sel_pair.ticker_a)} / {dn(sel_pair.ticker_b)}  (HL={sel_pair.half_life:.0f}d, p={sel_pair.coint_pvalue:.4f})",
+            yaxis_title="Z-Score",
+            template="plotly_dark",
+            height=450,
+            margin=dict(l=50, r=20, t=50, b=40),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, key=f"zscore_{sel_pair.ticker_a}_{sel_pair.ticker_b}")
+
+    except Exception as e:
+        st.error(f"Failed to compute analytics for selected pair: {e}")
 
 # ---------------------------------------------------------------------------
 # Title
@@ -413,54 +463,9 @@ st.markdown("---")
 
 viz_col1, viz_col2 = st.columns([3, 2])
 
-# --- Z-Score chart for selected pair ---
+# --- Z-Score chart for selected pair (fragment — reruns independently) ---
 with viz_col1:
-    st.subheader("Z-Score: Selected Pair")
-
-    if sel_pair is not None:
-        try:
-            analytics = cached_pair_analytics(
-                p_hash, prices, sel_pair.ticker_a, sel_pair.ticker_b, window=DEFAULT_LOOKBACK,
-            )
-            zscore_series = analytics["zscore"].dropna()
-            display_window = min(252, len(zscore_series))
-            zs = zscore_series.iloc[-display_window:]
-
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=zs.index, y=zs.values,
-                mode="lines", name="Z-Score",
-                line=dict(color="white", width=2),
-            ))
-
-            fig.add_hline(y=profile.zscore_entry, line_dash="dash", line_color="cyan", annotation_text=f"Entry +{profile.zscore_entry}")
-            fig.add_hline(y=-profile.zscore_entry, line_dash="dash", line_color="cyan", annotation_text=f"Entry -{profile.zscore_entry}")
-            fig.add_hline(y=DEFAULT_ZSCORE_EXIT, line_dash="dot", line_color="lime", annotation_text=f"Exit +{DEFAULT_ZSCORE_EXIT}")
-            fig.add_hline(y=-DEFAULT_ZSCORE_EXIT, line_dash="dot", line_color="lime", annotation_text=f"Exit -{DEFAULT_ZSCORE_EXIT}")
-            fig.add_hline(y=profile.zscore_stop, line_dash="solid", line_color="red", annotation_text=f"Stop +{profile.zscore_stop}")
-            fig.add_hline(y=-profile.zscore_stop, line_dash="solid", line_color="red", annotation_text=f"Stop -{profile.zscore_stop}")
-            fig.add_hline(y=0, line_color="grey", line_width=0.5)
-
-            fig.add_hrect(y0=profile.zscore_entry, y1=profile.zscore_stop, fillcolor="rgba(255,165,0,0.08)", line_width=0)
-            fig.add_hrect(y0=-profile.zscore_stop, y1=-profile.zscore_entry, fillcolor="rgba(255,165,0,0.08)", line_width=0)
-            fig.add_hrect(y0=profile.zscore_stop, y1=max(zs.max() * 1.1, profile.zscore_stop + 1), fillcolor="rgba(255,0,0,0.1)", line_width=0)
-            fig.add_hrect(y0=min(zs.min() * 1.1, -profile.zscore_stop - 1), y1=-profile.zscore_stop, fillcolor="rgba(255,0,0,0.1)", line_width=0)
-
-            # FIX #3: Display names in chart title
-            fig.update_layout(
-                title=f"{dn(sel_pair.ticker_a)} / {dn(sel_pair.ticker_b)}  (HL={sel_pair.half_life:.0f}d, p={sel_pair.coint_pvalue:.4f})",
-                yaxis_title="Z-Score",
-                template="plotly_dark",
-                height=450,
-                margin=dict(l=50, r=20, t=50, b=40),
-                showlegend=False,
-            )
-            st.plotly_chart(fig, use_container_width=True, key=f"zscore_{sel_pair.ticker_a}_{sel_pair.ticker_b}")
-
-        except Exception as e:
-            st.error(f"Failed to compute analytics for selected pair: {e}")
-    else:
-        st.info("No valid pair selected.")
+    drill_down_chart(valid_pairs, prices, p_hash, profile)
 
 
 # --- Regime Heatmap ---

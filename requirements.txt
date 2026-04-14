@@ -1,4 +1,4 @@
-streamlit>=1.30,<2
+streamlit>=1.37,<2
 plotly>=5.18
 yfinance>=0.2.36
 hmmlearn>=0.3

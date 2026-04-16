@@ -448,19 +448,41 @@ if triggered_entries:
             })
         st.dataframe(pd.DataFrame(trig_rows), use_container_width=True, hide_index=True)
 
-# FIX #1: Exits shown by default, not hidden in expander
-if exit_positions:
-    st.subheader(f"Exit / Stop Signals ({len(exit_positions)})")
-    st.caption("Pairs where the spread has reverted (EXIT) or blown past the stop (STOP). Close these positions if you currently hold them.")
-    exit_rows = []
-    for p in exit_positions:
-        exit_rows.append({
+# STOP signals shown prominently (emergency — cointegration may be breaking down)
+stop_positions = [p for p in positions if p.signal == "STOP"]
+if stop_positions:
+    st.subheader(f"STOP Signals ({len(stop_positions)})")
+    st.caption("These pairs have blown past the emergency threshold. If you hold any of them, exit immediately.")
+    stop_rows = []
+    for p in stop_positions:
+        zs = next((s.zscore for s in pairs_result["signals"] if s.ticker_a == p.ticker_a and s.ticker_b == p.ticker_b), 0.0)
+        stop_rows.append({
             "Ticker A": dn(p.ticker_a),
             "Ticker B": dn(p.ticker_b),
+            "Z-Score": round(zs, 3),
             "Signal": p.signal,
-            "Eff. Leverage": f"{p.effective_leverage:.1f}x",
         })
-    st.dataframe(pd.DataFrame(exit_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(stop_rows), use_container_width=True, hide_index=True)
+
+# EXIT signals in a less prominent section — these fire for ALL cointegrated pairs
+# near fair value, not just ones the user actually holds
+exit_only = [p for p in positions if p.signal == "EXIT"]
+if exit_only:
+    with st.expander(f"Pairs at Fair Value ({len(exit_only)})"):
+        st.caption(
+            "These cointegrated pairs have z-scores near zero, meaning the spread has reverted "
+            "to its mean. If you hold any of these pairs from a previous entry signal, this is "
+            "the take-profit zone. Pairs listed here were NOT necessarily previous entry signals."
+        )
+        exit_rows = []
+        for p in exit_only:
+            zs = next((s.zscore for s in pairs_result["signals"] if s.ticker_a == p.ticker_a and s.ticker_b == p.ticker_b), 0.0)
+            exit_rows.append({
+                "Ticker A": dn(p.ticker_a),
+                "Ticker B": dn(p.ticker_b),
+                "Z-Score": round(zs, 3),
+            })
+        st.dataframe(pd.DataFrame(exit_rows), use_container_width=True, hide_index=True)
 
 # ---------------------------------------------------------------------------
 # Visualisations

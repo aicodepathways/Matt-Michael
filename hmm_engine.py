@@ -77,14 +77,26 @@ def build_features(
     """
     Build the feature matrix for the HMM.
 
+    Features are chosen specifically for pairs-trading regime detection.
+    The key question: is the market TRENDING (bad for pairs) or
+    MEAN-REVERTING (good for pairs)?
+
     Features per observation (row = trading day):
       1. Cross-sectional mean return   (market direction)
-      2. Cross-sectional mean realised vol (market stress)
+      2. Return autocorrelation (10d)  (trending vs mean-reverting)
       3. Cross-sectional return dispersion (divergence/convergence)
-      4. Realised vol rate-of-change   (vol acceleration)
+      4. Smoothed return momentum (21d) (trend strength and direction)
 
-    Using cross-sectional aggregates avoids overfitting to individual tickers
-    and makes the regime detector portfolio-level rather than stock-specific.
+    Feature 2 is the critical pairs-trading discriminator:
+      - Positive autocorrelation = momentum/trending → pairs lose money
+      - Negative autocorrelation = mean-reverting → pairs make money
+      - Near zero = random walk → pairs are neutral
+
+    Volatility is deliberately excluded. Mining stocks have structurally
+    high vol (60-70% annualised). Previous versions used raw or normalised
+    vol as a feature, causing the HMM to mislabel normal mining-stock
+    volatility as BEAR. For pairs trading, trend structure matters more
+    than vol level.
     """
     if tickers is not None:
         available = [t for t in tickers if t in returns.columns]
@@ -96,14 +108,18 @@ def build_features(
     # 1. Market return (cross-sectional mean)
     features["market_return"] = returns.mean(axis=1)
 
-    # 2. Market volatility (cross-sectional mean of rolling vol)
-    features["market_vol"] = volatility.mean(axis=1)
+    # 2. Return autocorrelation (10-day rolling)
+    # Positive = trending (bad for pairs), negative = mean-reverting (good)
+    market_ret = features["market_return"]
+    features["market_vol"] = market_ret.rolling(10, min_periods=5).apply(
+        lambda x: x.autocorr(lag=1), raw=False,
+    )
 
     # 3. Return dispersion (cross-sectional std of daily returns)
     features["return_dispersion"] = returns.std(axis=1)
 
-    # 4. Vol acceleration (rate of change of market vol)
-    features["vol_roc"] = features["market_vol"].pct_change(periods=5)
+    # 4. Smoothed return momentum (21-day rolling mean return)
+    features["return_momentum"] = market_ret.rolling(21, min_periods=10).mean()
 
     # Drop NaN rows
     features = features.replace([np.inf, -np.inf], np.nan).dropna()
@@ -172,17 +188,20 @@ def label_states(
 ) -> Tuple[Dict[int, str], Dict[str, float], Dict[str, float]]:
     """
     Assign semantic labels (BULL / BEAR / CHOP) to HMM states based on
-    the mean return and volatility characteristics of each state.
+    a composite score of return direction and volatility.
 
-    Labelling heuristic:
-      - Sort states by their mean of the 'market_return' feature
-      - Lowest mean return → BEAR
-      - Highest mean return → BULL
-      - Middle (or lowest vol if tied) → CHOP (mean-reverting / range-bound)
+    Labelling heuristic (for 3 states):
+      Uses the momentum feature (smoothed 21-day return) to assign labels:
+      - Highest momentum → BULL (strong uptrend)
+      - Lowest momentum → BEAR (strong downtrend)
+      - Middle → CHOP (range-bound, ideal for pairs)
+
+      Volatility is excluded from labelling because mining stocks have
+      structurally high vol that would otherwise bias toward BEAR.
     """
     n_states = model.n_components
     return_col = list(features.columns).index("market_return")
-    vol_col = list(features.columns).index("market_vol")
+    momentum_col = list(features.columns).index("return_momentum")
 
     # Model means are in scaled space — invert to original scale for labelling
     if scaler is not None:
@@ -190,28 +209,28 @@ def label_states(
     else:
         original_means = model.means_
 
-    # Extract per-state mean return and mean vol
+    # Extract per-state mean return and mean autocorrelation (stored as market_vol)
     state_mean_returns = {}
     state_mean_vols = {}
     for s in range(n_states):
         state_mean_returns[s] = original_means[s, return_col]
-        state_mean_vols[s] = original_means[s, vol_col]
+        # Use momentum for labelling — it directly measures trend direction
+        state_mean_vols[s] = original_means[s, momentum_col]
 
-    # Sort states by mean return: lowest → BEAR, highest → BULL
-    sorted_by_return = sorted(state_mean_returns.keys(), key=lambda s: state_mean_returns[s])
+    # Sort by momentum: lowest = BEAR, highest = BULL, middle = CHOP
+    sorted_by_momentum = sorted(range(n_states), key=lambda s: original_means[s, momentum_col])
 
     label_map = {}
     if n_states == 3:
-        label_map[sorted_by_return[0]] = "BEAR"
-        label_map[sorted_by_return[1]] = "CHOP"
-        label_map[sorted_by_return[2]] = "BULL"
+        label_map[sorted_by_momentum[0]] = "BEAR"
+        label_map[sorted_by_momentum[1]] = "CHOP"
+        label_map[sorted_by_momentum[2]] = "BULL"
     elif n_states == 2:
-        label_map[sorted_by_return[0]] = "BEAR"
-        label_map[sorted_by_return[1]] = "BULL"
+        label_map[sorted_by_momentum[0]] = "BEAR"
+        label_map[sorted_by_momentum[1]] = "BULL"
     else:
-        # Fallback: use config labels or numeric
         for s in range(n_states):
-            label_map[s] = REGIME_LABELS.get(sorted_by_return[s], f"STATE_{s}")
+            label_map[s] = REGIME_LABELS.get(sorted_by_momentum[s], f"STATE_{s}")
 
     # Build readable dicts keyed by label
     means_by_label = {label_map[s]: state_mean_returns[s] for s in range(n_states)}

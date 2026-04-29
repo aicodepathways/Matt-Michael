@@ -309,7 +309,7 @@ col3.markdown(
 
 lev = portfolio_risk.effective_leverage
 lev_color = "red" if lev > profile.max_leverage_util else ("orange" if lev > profile.max_leverage_util * 0.8 else "green")
-col4.metric("Eff. Leverage", f"{lev:.1f}x / {profile.max_leverage_util:.0f}x")
+col4.metric("Eff. Leverage", f"{lev:.1f}x / {profile.max_leverage_util:.1f}x")
 col4.markdown(
     f"<span style='color:{lev_color}; font-weight:bold; font-size:0.9em;'>"
     f"Broker max: {MAX_LEVERAGE:.0f}x</span>", unsafe_allow_html=True,

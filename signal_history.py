@@ -178,35 +178,49 @@ def compute_changes(today_positions: list, today_signals: list, today_date: str)
     yesterday = get_yesterday_signals(today_date)
     prev_date = get_previous_date(today_date)
 
-    # Today's entry pairs
+    # Helper to normalise pair identity — same pair regardless of long/short order
+    # or ticker_a/ticker_b convention. Sort the pair tuple alphabetically.
+    def _norm(a: str, b: str) -> tuple:
+        return tuple(sorted((a, b)))
+
+    # Today's entry pairs (normalised)
     today_entry_pairs = set()
+    today_lookup = {}  # normalised → (long_display, short_display) for output
     for p in today_positions:
         if p.signal in ("LONG_A_SHORT_B", "SHORT_A_LONG_B"):
-            today_entry_pairs.add((p.ticker_a, p.ticker_b))
+            key = _norm(p.ticker_a, p.ticker_b)
+            today_entry_pairs.add(key)
+            if p.signal == "LONG_A_SHORT_B":
+                today_lookup[key] = (p.ticker_a, p.ticker_b)
+            else:
+                today_lookup[key] = (p.ticker_b, p.ticker_a)
 
     if yesterday is None:
         return {
-            "new_entries": list(today_entry_pairs),
+            "new_entries": [today_lookup[k] for k in today_entry_pairs],
             "closed": [],
             "continued": [],
             "previous_date": None,
         }
 
-    # Yesterday's entry pairs
+    # Yesterday's entry pairs (normalised the same way)
     yesterday_entry_pairs = set()
+    yesterday_lookup = {}
     for s in yesterday:
         if s.get("type") == "ENTRY":
-            yesterday_entry_pairs.add((s["long"], s["short"]))
-            # Also check reversed order since ticker_a/ticker_b may differ
-            yesterday_entry_pairs.add((s.get("ticker_a", s["long"]), s.get("ticker_b", s["short"])))
+            long_t = s.get("long", "")
+            short_t = s.get("short", "")
+            key = _norm(long_t, short_t)
+            yesterday_entry_pairs.add(key)
+            yesterday_lookup[key] = (long_t, short_t)
 
-    new_entries = today_entry_pairs - yesterday_entry_pairs
-    closed = yesterday_entry_pairs - today_entry_pairs
-    continued = today_entry_pairs & yesterday_entry_pairs
+    new_keys = today_entry_pairs - yesterday_entry_pairs
+    closed_keys = yesterday_entry_pairs - today_entry_pairs
+    continued_keys = today_entry_pairs & yesterday_entry_pairs
 
     return {
-        "new_entries": list(new_entries),
-        "closed": list(closed),
-        "continued": list(continued),
+        "new_entries": [today_lookup[k] for k in new_keys],
+        "closed": [yesterday_lookup[k] for k in closed_keys],
+        "continued": [today_lookup[k] for k in continued_keys],
         "previous_date": prev_date,
     }

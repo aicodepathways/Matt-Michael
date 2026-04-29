@@ -179,26 +179,39 @@ def compute_vol_scalar(
 def compute_pair_weight(
     hedge_ratio: float,
     vol_scalar: float,
+    price_a: float,
+    price_b: float,
     max_weight: float = MAX_POSITION_PCT,
 ) -> tuple:
     """
-    Compute the notional weight for each leg of a pairs trade.
+    Compute the notional weight (% of NAV) for each leg of a pairs trade.
 
-    For a pair (A, B) with hedge ratio h:
-      - Weight_A = base_weight * vol_scalar
-      - Weight_B = Weight_A * hedge_ratio (opposite sign)
+    The OLS hedge ratio β is a SHARE-quantity ratio: "for every 1 share of A
+    long, short β shares of B." We must convert it to a DOLLAR ratio using
+    the current price ratio:
 
-    The base weight is calibrated so that the gross exposure of the pair
-    (|w_a| + |w_b|) does not exceed max_weight.
+        dollar_ratio = β * (price_b / price_a)
+
+    Without this conversion, pairs with mismatched prices (e.g. IGO at $7
+    and PMT at $0.50) get wildly oversized short legs because the code
+    would interpret β as a dollar multiplier.
     """
-    # Base weight before vol scaling
-    # Gross = |w_a| + |h * w_a| = |w_a| * (1 + |h|)
-    # So w_a = max_weight / (1 + |h|)
     abs_h = abs(hedge_ratio) if hedge_ratio != 0 else 1.0
-    base_weight = max_weight / (1.0 + abs_h)
+
+    # Convert share-ratio to dollar-ratio at current prices
+    if price_a > 0 and price_b > 0:
+        dollar_ratio = abs_h * (price_b / price_a)
+    else:
+        dollar_ratio = abs_h
+
+    # Calibrate base weight so gross exposure |w_a| + |w_b| ≈ max_weight
+    base_weight = max_weight / (1.0 + dollar_ratio)
 
     weight_a = base_weight * vol_scalar
-    weight_b = weight_a * hedge_ratio
+    # weight_b in dollars = weight_a * β * (price_b / price_a)
+    # Sign of hedge_ratio is preserved (rarely negative for cointegrated pairs)
+    sign = 1.0 if hedge_ratio >= 0 else -1.0
+    weight_b = weight_a * dollar_ratio * sign
 
     # Final clamp: neither leg exceeds max_weight
     max_leg = max(abs(weight_a), abs(weight_b))
@@ -323,9 +336,10 @@ def size_pair_position(
     regime_scalar = regime_confidence_scalar(regime, profile)
     adjusted_scalar = vol_scalar * regime_scalar
 
-    # Step 3: Compute weights
+    # Step 3: Compute weights (price-aware so dollar-ratio is correct)
     weight_a, weight_b = compute_pair_weight(
-        signal.hedge_ratio, adjusted_scalar, max_weight=MAX_POSITION_PCT,
+        signal.hedge_ratio, adjusted_scalar, price_a, price_b,
+        max_weight=MAX_POSITION_PCT,
     )
 
     # Step 4: Apply signal direction

@@ -192,12 +192,13 @@ def label_states(
 
     Labelling heuristic (for 3 states):
       Uses the momentum feature (smoothed 21-day return) to assign labels:
-      - Highest momentum → BULL (strong uptrend)
-      - Lowest momentum → BEAR (strong downtrend)
-      - Middle → CHOP (range-bound, ideal for pairs)
+      - Highest mean daily return → BULL
+      - Lowest mean daily return → BEAR
+      - Middle → CHOP (range-bound)
 
       Volatility is excluded from labelling because mining stocks have
       structurally high vol that would otherwise bias toward BEAR.
+      Labels match user intuition: BEAR = lowest returns, BULL = highest.
     """
     n_states = model.n_components
     return_col = list(features.columns).index("market_return")
@@ -209,28 +210,29 @@ def label_states(
     else:
         original_means = model.means_
 
-    # Extract per-state mean return and mean autocorrelation (stored as market_vol)
+    # Extract per-state mean return and mean momentum
     state_mean_returns = {}
     state_mean_vols = {}
     for s in range(n_states):
         state_mean_returns[s] = original_means[s, return_col]
-        # Use momentum for labelling — it directly measures trend direction
         state_mean_vols[s] = original_means[s, momentum_col]
 
-    # Sort by momentum: lowest = BEAR, highest = BULL, middle = CHOP
-    sorted_by_momentum = sorted(range(n_states), key=lambda s: original_means[s, momentum_col])
+    # Sort by mean return: lowest = BEAR, highest = BULL, middle = CHOP
+    # This is the most user-intuitive labelling — "bull" should mean
+    # positive returns, "bear" should mean negative returns.
+    sorted_by_return = sorted(range(n_states), key=lambda s: original_means[s, return_col])
 
     label_map = {}
     if n_states == 3:
-        label_map[sorted_by_momentum[0]] = "BEAR"
-        label_map[sorted_by_momentum[1]] = "CHOP"
-        label_map[sorted_by_momentum[2]] = "BULL"
+        label_map[sorted_by_return[0]] = "BEAR"
+        label_map[sorted_by_return[1]] = "CHOP"
+        label_map[sorted_by_return[2]] = "BULL"
     elif n_states == 2:
-        label_map[sorted_by_momentum[0]] = "BEAR"
-        label_map[sorted_by_momentum[1]] = "BULL"
+        label_map[sorted_by_return[0]] = "BEAR"
+        label_map[sorted_by_return[1]] = "BULL"
     else:
         for s in range(n_states):
-            label_map[s] = REGIME_LABELS.get(sorted_by_momentum[s], f"STATE_{s}")
+            label_map[s] = REGIME_LABELS.get(sorted_by_return[s], f"STATE_{s}")
 
     # Build readable dicts keyed by label
     means_by_label = {label_map[s]: state_mean_returns[s] for s in range(n_states)}

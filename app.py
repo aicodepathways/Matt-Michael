@@ -352,7 +352,28 @@ if changes["previous_date"]:
     if changes["new_entries"]:
         st.success(f"**New since {changes['previous_date']}:** " + ", ".join(f"{dn(a)}/{dn(b)}" for a, b in changes["new_entries"]))
     if changes["closed"]:
-        st.error(f"**Closed since {changes['previous_date']}:** " + ", ".join(f"{dn(a)}/{dn(b)}" for a, b in changes["closed"]))
+        # Annotate each closed pair with what happened to it today
+        # (helps user know if it was an EXIT, STOP, or just dropped to FLAT)
+        closed_with_reason = []
+        for long_t, short_t in changes["closed"]:
+            # Find current signal for this pair (try both orderings)
+            cur_sig = None
+            for s in pairs_result["signals"]:
+                if {s.ticker_a, s.ticker_b} == {long_t, short_t}:
+                    cur_sig = s
+                    break
+            if cur_sig is None:
+                reason = "no longer cointegrated"
+            elif cur_sig.signal == "STOP":
+                reason = f"STOP (z={cur_sig.zscore:+.2f}) — exit immediately"
+            elif cur_sig.signal == "EXIT":
+                reason = f"EXIT (z={cur_sig.zscore:+.2f}) — spread reverted, take profit"
+            elif cur_sig.signal == "FLAT":
+                reason = f"FLAT (z={cur_sig.zscore:+.2f}) — z-score no longer extreme enough"
+            else:
+                reason = f"now {cur_sig.signal}"
+            closed_with_reason.append(f"{dn(long_t)}/{dn(short_t)} → {reason}")
+        st.error(f"**Closed since {changes['previous_date']}:**\n\n- " + "\n- ".join(closed_with_reason))
     if not changes["new_entries"] and not changes["closed"]:
         st.info(f"No changes since {changes['previous_date']}. All {len(changes['continued'])} positions continue.")
 else:
@@ -763,8 +784,24 @@ else:
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
+
+# Data freshness check — yfinance ASX data typically lags 6-12 hours after close
+import datetime as _dt
+_last_data_date = prices.index[-1].date()
+_today_aest = (_dt.datetime.utcnow() + _dt.timedelta(hours=10)).date()
+_days_behind = (_today_aest - _last_data_date).days
+
+if _days_behind == 0:
+    _freshness = "current (today's close)"
+elif _days_behind == 1:
+    _freshness = "1 day behind (yesterday's close — yfinance ASX data typically appears 6-12h after market close)"
+elif _days_behind <= 3:
+    _freshness = f"{_days_behind} days behind (weekend/holiday gap is normal)"
+else:
+    _freshness = f"{_days_behind} days behind — try Refresh Data"
+
 st.caption(
-    f"Data: {prices.index[0].date()} to {prices.index[-1].date()} | "
+    f"Data: {prices.index[0].date()} to {_last_data_date} ({_freshness}) | "
     f"{len(prices.columns)} tickers | "
     f"HMM trained on {len(regime_history.labels)} days | "
     f"Forward-fill limit: 3 days | "
